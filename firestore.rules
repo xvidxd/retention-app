@@ -1,0 +1,173 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: streams
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - blockDates: map (optional)
+    //   - createdAt: string (required)
+    //
+    // Collection: students
+    // Document ID: auto-generated
+    // Fields:
+    //   - email: string (required)
+    //   - streamId: string (required)
+    //   - streamName: string (optional)
+    //   - currentBlock: number (required)
+    //   - expectedBlock: number (optional)
+    //   - delta: number (optional)
+    //   - status: string (required)
+    //   - lastActionDate: string (optional)
+    //   - nextActionDate: string (optional)
+    //   - noMovementCount: number (optional)
+    //   - updatedAt: string (required)
+    //
+    // Collection: imports
+    // Document ID: auto-generated
+    // Fields:
+    //   - date: string (required)
+    //   - fileName: string (required)
+    //   - totalStudents: number (required)
+    //
+    // Collection: progress
+    // Document ID: auto-generated
+    // Fields:
+    //   - studentId: string (required)
+    //   - importId: string (required)
+    //   - date: string (required)
+    //   - block: number (required)
+    //
+    // Collection: actions
+    // Document ID: auto-generated
+    // Fields:
+    //   - studentId: string (required)
+    //   - date: string (required)
+    //   - type: string (required)
+    //   - result: string (required)
+    //   - comment: string (optional)
+    //   - nextActionDate: string (optional)
+    //   - managerId: string (required)
+    //   - managerName: string (optional)
+    //
+    // Collection: kpi_history
+    // Document ID: date string (YYYY-MM-DD)
+    // Fields:
+    //   - date: string (required)
+    //   - timestamp: string (required)
+    //   - startedPercent: number (required)
+    //   - progressingPercent: number (required)
+    //   - criticalCount: number (required)
+    //   - droppedOutPercent: number (required)
+    //   - totalTarget: number (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidStream(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdAt is string;
+    }
+
+    function isValidStudent(data) {
+      return data.email is string && data.email.size() > 0 && data.email.size() < 100 &&
+             data.streamId is string && data.streamId.size() > 0 && data.streamId.size() < 100 &&
+             data.currentBlock is number &&
+             data.status in ['not_started', 'normal', 'lagging', 'critical'] &&
+             data.updatedAt is string;
+    }
+
+    function isValidImport(data) {
+      return data.date is string &&
+             data.fileName is string && data.fileName.size() > 0 && data.fileName.size() < 200 &&
+             data.totalStudents is number && data.totalStudents >= 0;
+    }
+
+    function isValidProgress(data) {
+      return data.studentId is string && data.studentId.size() > 0 && data.studentId.size() < 100 &&
+             data.importId is string && data.importId.size() > 0 && data.importId.size() < 100 &&
+             data.date is string &&
+             data.block is number;
+    }
+
+    function isValidAction(data) {
+      return data.studentId is string && data.studentId.size() > 0 && data.studentId.size() < 100 &&
+             data.date is string &&
+             data.type is string && data.type.size() > 0 && data.type.size() < 100 &&
+             data.result is string && data.result.size() > 0 && data.result.size() < 100 &&
+             data.managerId is string && data.managerId.size() > 0 && data.managerId.size() < 100 &&
+             (!('isCompleted' in data) || data.isCompleted is bool);
+    }
+
+    function isValidKpiHistory(data) {
+      return data.date is string &&
+             data.timestamp is string &&
+             data.startedPercent is number &&
+             data.progressingPercent is number &&
+             data.criticalCount is number &&
+             data.droppedOutPercent is number &&
+             data.totalTarget is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /streams/{streamId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['name', 'createdAt']) && isValidStream(request.resource.data);
+      allow update: if isAuthenticated() && isValidStream(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['email', 'streamId', 'currentBlock', 'status', 'updatedAt']) && isValidStudent(request.resource.data);
+      allow update: if isAuthenticated() && isValidStudent(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /imports/{importId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['date', 'fileName', 'totalStudents']) && isValidImport(request.resource.data);
+      allow update: if isAuthenticated() && isValidImport(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /progress/{progressId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['studentId', 'importId', 'date', 'block']) && isValidProgress(request.resource.data);
+      allow update: if isAuthenticated() && isValidProgress(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /actions/{actionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['studentId', 'date', 'type', 'result', 'managerId']) && isValidAction(request.resource.data);
+      allow update: if isAuthenticated() && isValidAction(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /kpi_history/{kpiId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && hasRequiredFields(['date', 'timestamp', 'startedPercent', 'progressingPercent', 'criticalCount', 'droppedOutPercent', 'totalTarget']) && isValidKpiHistory(request.resource.data);
+      allow update: if isAuthenticated() && isValidKpiHistory(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+  }
+}
